@@ -23,4 +23,4 @@ Solo and hands-on. A few projects at a time, and the person you talk to writes t
 
 If you have a problem with a hard part in it, tell me about it.
 
-[fzltech.nl](https://fzltech.nl) · [linkedin.com/in/jeroen-franzel](https://www.linkedin.com/in/jeroen-franzel/)
+[fzltech.nl](https://fzltech.nl) · [jeroen@fzltech.nl](mailto:jeroen@fzltech.nl) · [linkedin.com/in/jeroen-franzel](https://www.linkedin.com/in/jeroen-franzel/)
