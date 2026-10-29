@@ -11,6 +11,10 @@ on:
         description: Prefix for the release tag.
         type: string
         default: v
+    secrets:
+      RELEASE_PAT:
+        description: Optional PAT that can push to a protected default branch.
+        required: false
 
 permissions:
   contents: write
@@ -23,6 +27,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Falls back to GITHUB_TOKEN; RELEASE_PAT lets the bump commit bypass
+          # branch protection on admin-managed branches.
+          token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Determine bump from merged PR label
         id: bump
