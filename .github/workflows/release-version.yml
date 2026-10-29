@@ -1,0 +1,91 @@
+name: Release Version
+
+on:
+  workflow_call:
+    inputs:
+      version-file:
+        description: Path to the file containing the current version.
+        type: string
+        default: VERSION
+      tag-prefix:
+        description: Prefix for the release tag.
+        type: string
+        default: v
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine bump from merged PR label
+        id: bump
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION_FILE: ${{ inputs.version-file }}
+        run: |
+          set -euo pipefail
+          LABEL=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+            --jq '[.[] | select(.merged_at != null)][0].labels[].name' \
+            | grep '^Semantic Versioning:' | head -n1 || true)
+          if [ -z "$LABEL" ]; then
+            echo "No semantic version label on the merged PR; skipping release."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "label=$LABEL" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Bump version and tag
+        if: steps.bump.outputs.skip != 'true'
+        env:
+          LABEL: ${{ steps.bump.outputs.label }}
+          VERSION_FILE: ${{ inputs.version-file }}
+          TAG_PREFIX: ${{ inputs.tag-prefix }}
+        run: |
+          set -euo pipefail
+          if [ -f "$VERSION_FILE" ]; then
+            CURRENT=$(tr -d '[:space:]' < "$VERSION_FILE")
+          else
+            CURRENT=0.0.0
+          fi
+
+          NEXT=$(python3 - "$CURRENT" "$LABEL" <<'PY'
+          import sys
+          base, label = sys.argv[1], sys.argv[2]
+          nums = [int(x) for x in base.split('.')]
+          while len(nums) < 3:
+              nums.append(0)
+          x, y, z = nums[:3]
+          if label == 'Semantic Versioning: Major':
+              x, y, z = x + 1, 0, 0
+          elif label == 'Semantic Versioning: Minor':
+              y, z = y + 1, 0
+          else:
+              z = z + 1
+          print(f'{x}.{y}.{z}')
+          PY
+          )
+
+          echo "Releasing $CURRENT -> $NEXT ($LABEL)"
+          printf '%s\n' "$NEXT" > "$VERSION_FILE"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$VERSION_FILE"
+          git commit -m "chore: release $NEXT [skip release]"
+          git push
+
+          TAG="${TAG_PREFIX}${NEXT}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists."
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
